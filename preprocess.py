@@ -74,7 +74,16 @@ def normalisation(arr):
     min = np.min(arr, 0)
     return (arr-min)/(max - min)
 
-def load_all ():
+def standardization(arr):
+    # Переводим массив в новый массив с 0 матожиданием и единичной дисперсией
+    mean = arr.mean(0)
+    variance = arr.var(0)
+    return (arr-mean)/np.sqrt(variance), mean, variance
+
+def undo_standartization(arr, mean, var):
+    return arr * np.power(var, 2) + mean
+
+def load_all():
     labels = []
     data = []
     for p1 in os.scandir(images_path):
@@ -96,7 +105,7 @@ def load_all ():
                     emotion = 0
                 d = get_milestones(image)
                 if d is None: continue
-                dn = normalisation(d)
+                dn, _ , _ = standardization(d)
                 labels.append([emotion])
                 data.append(dn.flatten())
                 print (emotion)
@@ -104,4 +113,4 @@ def load_all ():
 
 
 
-## TODO: Выделение главных компонент
+# TODO: Выделение главных компонент
