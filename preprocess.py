@@ -6,6 +6,7 @@ import cv2
 import os
 import numpy as np
 import dlib
+import sklearn.decomposition
 
 # Emotion tags in ascending order
 emotions = ['neutral', 'anger', 'contempt', 'disgust',
@@ -83,6 +84,11 @@ def standardization(arr):
 def undo_standartization(arr, mean, var):
     return arr * np.power(var, 2) + mean
 
+
+def whitening (arr):
+    pass
+
+
 def load_all():
     labels = []
     data = []
@@ -105,12 +111,17 @@ def load_all():
                     emotion = 0
                 d = get_milestones(image)
                 if d is None: continue
-                dn, _ , _ = standardization(d)
+                dn = normalisation(d)
                 labels.append([emotion])
                 data.append(dn.flatten())
                 print (emotion)
     return labels, data
 
 
+
+def pca (arr, keep_variance = 0.95):
+    pca = sklearn.decomposition.PCA(n_components=keep_variance, svd_solver='full')
+    pca.fit(arr)
+    return pca
 
 # TODO: Выделение главных компонент
