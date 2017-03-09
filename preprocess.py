@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 # -*- coding: utf-8 -*-
 
 import cv2
@@ -89,6 +88,10 @@ def whitening (arr):
     pass
 
 
+def mirror(arr):
+    return np.apply_along_axis(lambda x: [1-x[0], x[1]], 1, arr)
+
+
 def load_all():
     labels = []
     data = []
@@ -104,7 +107,7 @@ def load_all():
                 if not p3.is_file():
                     continue
                 image = p3.path
-                print (image)
+              #  print (image)
                 if int(image.rsplit("_")[-1][:-4]) > 5: # Начальные изображения - нейтральные
                     emotion = get_emotion(subject, num)
                 else:
@@ -112,13 +115,15 @@ def load_all():
                 d = get_milestones(image)
                 if d is None: continue
                 dn = normalisation(d)
-                labels.append([emotion])
+                labels.append([emotion]*2)
+                data.append(mirror(dn).flatten()) # Отражаем лицо относительно оси x=0.5, поскольку лица, вообще, симметричны
                 data.append(dn.flatten())
-                print (emotion)
+                print (len(data))
+             #   print (emotion)
     return labels, data
 
 
-
+# Требует 0 матожидания => данные перед применением необходимо центрировать (arr = arr - arr.mean(0))
 def pca (arr, keep_variance = 0.95):
     pca = sklearn.decomposition.PCA(n_components=keep_variance, svd_solver='full')
     pca.fit(arr)
