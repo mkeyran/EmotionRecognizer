@@ -25,6 +25,20 @@ pose_model = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
 clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
 
+# Отображение номеров точек при зеркалировании
+mirrormap = [16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,
+             26,25,24,23,22,21,20,19,18,17,
+             27,28,29,30,
+             35,34,33,32,31,
+             45,44,43,42,47,46,
+             39,38,37,36,41,40,
+             54,53,52,51,50,49,48,
+             59,58,57,56,55,
+             64,
+             63,62,61,
+             60,
+             67,66,65]
+
 def get_emotion (subject, series):
     path = emotion_labels_path + "/" + subject + "/" + series
     if not os.path.exists(path):
@@ -53,12 +67,8 @@ def find_face(image):
             return None
 
 
-def get_milestones(path):
-    image = cv2.imread(path)
-    if image is None:
-        return None
+def get_milestones(image):
     gray_image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-
     face = find_face(gray_image)
     if face is None:
         return None
@@ -72,7 +82,7 @@ def get_milestones(path):
 def normalisation(arr):
     max = np.max(arr, 0)
     min = np.min(arr, 0)
-    return (arr-min)/(max - min)
+    return (arr-min)/(max - min)-0.5
 
 def standardization(arr):
     # Переводим массив в новый массив с 0 матожиданием и единичной дисперсией
@@ -83,13 +93,8 @@ def standardization(arr):
 def undo_standartization(arr, mean, var):
     return arr * np.power(var, 2) + mean
 
-
-def whitening (arr):
-    pass
-
-
 def mirror(arr):
-    return np.apply_along_axis(lambda x: [1-x[0], x[1]], 1, arr)
+    return np.apply_along_axis(lambda x: [-x[0], x[1]], 1, arr)[mirrormap]
 
 
 def load_all():
@@ -112,7 +117,10 @@ def load_all():
                     emotion = get_emotion(subject, num)
                 else:
                     emotion = 0
-                d = get_milestones(image)
+                limage = cv2.imread(path)
+                if limage is None:
+                    continue
+                d = get_milestones(limage)
                 if d is None: continue
                 dn = normalisation(d)
                 labels.append([emotion]*2)
@@ -120,7 +128,7 @@ def load_all():
                 data.append(dn.flatten())
                 print (len(data))
              #   print (emotion)
-    return labels, data
+    return np.array(labels).flatten(), np.array(data)
 
 
 # Требует 0 матожидания => данные перед применением необходимо центрировать (arr = arr - arr.mean(0))
@@ -129,4 +137,3 @@ def pca (arr, keep_variance = 0.95):
     pca.fit(arr)
     return pca
 
-# TODO: Выделение главных компонент
