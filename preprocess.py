@@ -51,33 +51,39 @@ def get_emotion (subject, series):
         str = fin.readline()
         return int(float(str))
 
-def find_face(image):
+def find_faces(image):
     faces = frontal_face_detector(image)
     if len(faces) != 0:
-        return faces[0]
+        return faces
     else:
         faces = faceCascade.detectMultiScale(image)
         if len(faces) != 0:
-            x = faces[0][0]
-            y = faces[0][1]
-            x1 = x + faces[0][2]
-            y1 = y + faces[0][3]
-            return dlib.rectangle(x,y,x1,y1)
+            ret = []
+            for face in faces:
+                x = face[0]
+                y = face[1]
+                x1 = x + face[2]
+                y1 = y + face[3]
+                ret.append(dlib.rectangle(int(x),int(y),int(x1),int(y1)))
+            return ret
         else:
             return None
 
 
 def get_milestones(image):
     gray_image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-    face = find_face(gray_image)
-    if face is None:
-        return None
-    milestones = pose_model(gray_image, face)
-    arr = np.ndarray((milestones.num_parts, 2))
-    for i in range(milestones.num_parts):
-        arr[i, 0] = milestones.part(i).x
-        arr[i, 1] = milestones.part(i).y
-    return arr
+    faces = find_faces(gray_image)
+    if faces is None:
+        return []
+    ret = []
+    for face in faces:
+        milestones = pose_model(gray_image, face)
+        arr = np.ndarray((milestones.num_parts, 2))
+        for i in range(milestones.num_parts):
+            arr[i, 0] = milestones.part(i).x
+            arr[i, 1] = milestones.part(i).y
+        ret.append([face, arr])
+    return ret
 
 def normalisation(arr):
     max = np.max(arr, 0)
@@ -122,7 +128,7 @@ def load_all():
                     continue
                 d = get_milestones(limage)
                 if d is None: continue
-                dn = normalisation(d)
+                dn = normalisation(d[0][1])
                 labels.append([emotion]*2)
                 data.append(mirror(dn).flatten()) # Отражаем лицо относительно оси x=0.5, поскольку лица, вообще, симметричны
                 data.append(dn.flatten())

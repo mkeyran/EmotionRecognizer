@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 # -*- coding: utf-8 -*-
 
 
@@ -10,7 +9,11 @@ import sys
 import numpy as np
 import dlib
 from PIL import Image,ImageDraw
+import preprocess
+import nn_learn
 
+emotions_labels = ["Neutral", "Anger", "Contempt", "Disgust","Fear","Happiness","Sadness","Surprise"]
+emotions_smileys = ["😐","😠","😒","😖","😱","😄","😭","😲"]
 
 # Points:   36 - left eye (left)
 #           39 - left eye (right)
@@ -21,10 +24,6 @@ class MainApp(QWidget):
 
     def __init__(self):
         QWidget.__init__(self)
-        cascadePath = "haarcascade_frontalface_alt.xml"
-        self.faceCascade = cv2.CascadeClassifier(cascadePath)
-        self.frontal_face_detector = dlib.get_frontal_face_detector()
-        self.pose_model = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
         self.setup_camera()
         self.video_size = QSize(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH), self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
@@ -32,50 +31,39 @@ class MainApp(QWidget):
         self.setup_ui()
         self.frames= 0
         self.grey_frames = 0
+        self.modelName = "model"
+        self.model = nn_learn.get_network()
+        self.model.load (self.modelName)
 
-    def get_faces(self, color_image):
-        gray_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2GRAY)
-        # нормализуем гистограмму, и ищем лицо уже там
-        # http://docs.opencv.org/2.4/doc/tutorials/imgproc/histograms/histogram_equalization/histogram_equalization.html
-        gray_image = self.clahe.apply(gray_image)
-        faces = self.frontal_face_detector(gray_image) # Лица лучше ищутся на изображениях в оттенках серого
-        result = []
+
+    def recognize_emotion(self, faces):
+        emotions = []
         for face in faces:
-            current_face = {}
-            x = face.left()
-            y = face.top()
-            w = face.right() - x
-            h = face.bottom() - y
-            current_face['face'] = (x,y,w,h)
-            shape = self.pose_model (gray_image, face)
-            current_face['shape'] = shape
-            result.append(current_face)
-        return result
+            predicted = np.array(self.model.predict(nn_learn.pca.transform(preprocess.normalisation(face[1]).flatten())))
+            emotions.append(emotions_smileys[predicted.argmax()])
+        return emotions
 
-
-    def drawLandmarks (self, faces, image, number = False):
+    def drawLandmarks (self, faces, image, number = False, frames= False, dots = False):
         for face in faces:
-            (fx,fy,fw,fh) = face['face']
-            cv2.rectangle(image, (fx, fy), (fx + fw, fy + fh),
+            if frames:
+                (fx,fy,fw,fh) = (face[0].left(), face[0].top(), face[0].width(), face[0].height())
+                cv2.rectangle(image, (fx, fy), (fx + fw, fy + fh),
                           color=(0, 255, 0), thickness=3)
-            if ('face1' in face):
-                (fx1, fy1, fw1, fh1) = face['face1']
-                cv2.rectangle(image, (fx1, fy1), (fx1 + fw1, fy1 + fh1),
-                          color=(0, 255, 255), thickness=3)
             for i in range(0, 68):
-                part = face['shape'].part(i)
-                cv2.circle(image, (part.x, part.y), 2, color=(255, 255, 0), thickness = -1)
+                part = face[1][i]
+                if dots:
+                    cv2.circle(image, (int (part[0]), int(part[1])), 2, color=(255, 255, 0), thickness = -1)
                 if (number):
-                    cv2.putText(image, str(i),  (part.x, part.y), cv2.FONT_HERSHEY_PLAIN, 0.7, (255,255,255))
+                    cv2.putText(image, str(i),  (int (part[0]), int(part[1])), cv2.FONT_HERSHEY_PLAIN, 0.7, (255,255,255))
         return image
 
 
     def computeTilt(self, faces):
         if (not faces): return (None, None)
-        face = faces[0]['shape']
-        tilt = 180 - np.arctan2(face.part(45).y - face.part(39).y, face.part(39).x - face.part(45).x)*180/np.pi
+        face = faces[0][1]
+        tilt = 180 - np.arctan2(face[45][1]-face[39][1], face[39][0]-face[45][0])*180/np.pi
         return (tilt if tilt<180 else tilt - 360,
-                (face.part(39).x + face.part(45).x / 2, face.part(39).y + face.part(45).y / 2))
+                (face[39][0] + face[45][0] / 2, face[39][1] + face[45][1] / 2))
 
     def setup_ui(self):
         """Initialize widgets.
@@ -85,7 +73,7 @@ class MainApp(QWidget):
         self.image_label.setAlignment(Qt.AlignCenter)
 
         self.emotion_label = QLabel()
-        self.emotion_label.setText("Emotion: <div style='font-size:100px;'>😐</div>")
+        self.emotion_label.setText(u"Emotion: <div style='font-size:100px;'>😐</div>")
         self.emotion_label.setToolTip("Indifferent")
         self.emotion_label.setAlignment(Qt.AlignCenter)
 
@@ -126,10 +114,17 @@ class MainApp(QWidget):
         _, frame = self.capture.read()
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frame = cv2.flip(frame, 1)
-        faces = self.get_faces(frame)
+        #faces = self.get_faces(frame)
+        faces = preprocess.get_milestones(frame)
         self.frames +=1
         #print (faces)
         frame1 = self.drawLandmarks(faces, frame, False)
+        emotions = self.recognize_emotion(faces)
+        emotion_text= "Emotion:"
+        for emotion in emotions:
+            emotion_text +=  "<div style='font-size:100px;'>{}</div>".format(emotion)
+
+        self.emotion_label.setText(emotion_text)
         # Определяем наклон лица
         tilt, center = self.computeTilt(faces)
         # Если лицо есть на фрейме
