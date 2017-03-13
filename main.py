@@ -4,6 +4,7 @@
 
 from PySide.QtCore import *
 from PySide.QtGui import *
+import PySide.QtSvg
 import cv2
 import sys
 import numpy as np
@@ -14,7 +15,9 @@ import nn_learn
 
 emotions_labels = ["Neutral", "Anger", "Contempt", "Disgust","Fear","Happiness","Sadness","Surprise"]
 emotions_smileys = ["😐","😠","😒","😖","😱","😄","😭","😲"]
-
+# Emojis from http://emojione.com/developers/
+emotions_svg=["1f610","1f621","1f612","1f616","1f631","1f603", "1f61f","1f628"]
+svg_path = "Emotions/svg"
 # Points:   36 - left eye (left)
 #           39 - left eye (right)
 #           42 - right eye (left)
@@ -40,7 +43,7 @@ class MainApp(QWidget):
         emotions = []
         for face in faces:
             predicted = np.array(self.model.predict(nn_learn.pca.transform(preprocess.normalisation(face[1]).flatten())))
-            emotions.append(emotions_smileys[predicted.argmax()])
+            emotions.append(predicted.argmax())
         return emotions
 
     def drawLandmarks (self, faces, image, number = False, frames= False, dots = False):
@@ -57,6 +60,19 @@ class MainApp(QWidget):
                     cv2.putText(image, str(i),  (int (part[0]), int(part[1])), cv2.FONT_HERSHEY_PLAIN, 0.7, (255,255,255))
         return image
 
+    def drawSmileys(self, faces, emotions, image):
+        painter = QPainter()
+        painter.begin(image)
+        for i, face in enumerate (faces):
+            rect = QRect (face[0].left(), face[0].top(), face[0].width(), face[0].height())
+            painter.setRenderHints(QPainter.Antialiasing, True)
+            svg = PySide.QtSvg.QSvgRenderer()
+            svg.load(svg_path+"/"+emotions_svg[emotions[i]]+".svg")
+            svg.render(painter, rect)
+        painter.end()
+        return image
+
+        
 
     def computeTilt(self, faces):
         if (not faces): return (None, None)
@@ -82,7 +98,10 @@ class MainApp(QWidget):
         self.tilt_label = QLabel()
         self.tilt_label.setText("Tilt: ")
         self.grey_label = QLabel()
-
+            
+        self.anonymousMode = QCheckBox()
+        self.anonymousMode.setText("Anonymous mode")
+        
         self.quit_button = QPushButton("Quit")
         self.quit_button.clicked.connect(self.close)
 
@@ -92,6 +111,7 @@ class MainApp(QWidget):
         self.main_layout.addWidget(self.tilt_control)
         self.main_layout.addWidget(self.tilt_label)
         self.main_layout.addWidget(self.grey_label)
+        self.main_layout.addWidget(self.anonymousMode)
         self.main_layout.addWidget(self.quit_button)
 
 
@@ -118,12 +138,12 @@ class MainApp(QWidget):
         faces = preprocess.get_milestones(frame)
         self.frames +=1
         #print (faces)
-        frame1 = self.drawLandmarks(faces, frame, False)
+
         emotions = self.recognize_emotion(faces)
         emotion_text= "Emotion:"
         for emotion in emotions:
-            emotion_text +=  "<div style='font-size:100px;'>{}</div>".format(emotion)
-
+            emotion_text +=  "<div style='font-size:100px;'>{}</div>".format(emotions_smileys[emotion])
+        frame1 = self.drawLandmarks(faces, frame, False)
         self.emotion_label.setText(emotion_text)
         # Определяем наклон лица
         tilt, center = self.computeTilt(faces)
@@ -140,9 +160,14 @@ class MainApp(QWidget):
             frame1 = cv2.warpAffine(frame1,M,(cols,rows))
         image = QImage(frame1, frame1.shape[1], frame1.shape[0],
                        frame1.strides[0], QImage.Format_RGB888)
+        if self.anonymousMode.isChecked(): image = self.drawSmileys(faces, emotions, image)
+
         self.tilt_label.setText("tilt: {}".format(tilt))
         self.image_label.setPixmap(QPixmap.fromImage(image))
         self.grey_label.setText("Frames: {}; Grey frames: {}".format(self.frames, self.grey_frames))
+    
+    def __del__(self):
+        self.capture.release()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
