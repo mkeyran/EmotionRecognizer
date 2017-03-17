@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+1#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import cv2
@@ -6,6 +6,8 @@ import os
 import numpy as np
 import dlib
 import sklearn.decomposition
+import pickle
+
 
 # Emotion tags in ascending order
 emotions = ['neutral', 'anger', 'contempt', 'disgust',
@@ -25,8 +27,88 @@ pose_model = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
 clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
 
-# Отображение номеров точек при зеркалировании
-mirrormap = [16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,
+# Требует 0 матожидания => данные перед применением необходимо центрировать (arr = arr - arr.mean(0))
+def pca (arr, keep_variance = 0.95):
+    pca = sklearn.decomposition.PCA(n_components=keep_variance, svd_solver='full')
+    pca.fit(arr)
+    return pca
+
+
+
+class Face:
+    def __init__(self, filepath = None, image = None, rectangle = None, label = None):
+        if (filepath is None and image is None):
+            raise ValueError ("You must scpecify either filepath or image")
+        self._filepath = filepath 
+        self._image = image
+        self._tilt = None
+        self._milestones = None
+        self._center = None
+        self._emotions = None
+        self.label = label
+        self.rectangle = rectangle
+        
+    def image(self):
+        if self._image:
+            return self._image
+        else:
+            return cv2.imread(self._filepath)
+
+    def milestones(self):
+        if self.rectangle is None:
+            raise Exception("The face rectangle hasn't been set")
+        if self._milestones is None:
+            gray_image = cv2.cvtColor(self.image(), cv2.COLOR_RGB2GRAY)
+            milestones = pose_model(gray_image, self.rectangle)
+            arr = np.ndarray((milestones.num_parts, 2))
+            for i in range(milestones.num_parts):
+                arr[i, 0] = milestones.part(i).x
+                arr[i, 1] = milestones.part(i).y
+            self._milestones = arr
+        return self._milestones
+    
+    @staticmethod
+    def fabric (filepath = None, image = None, label = None):
+        if (filepath is None and image is None):
+            raise ValueError ("You must scpecify either filepath or image")
+        faces = []
+        if filepath: image = cv2.imread(filepath)
+        faces = frontal_face_detector(image)
+        if len(faces) != 0:
+            return [Face(filepath = filepath, image = image if not filepath else None, 
+                         rectangle = face, label = label) for face in faces]
+        else:
+            faces = faceCascade.detectMultiScale(image)
+            if len(faces) != 0:
+                ret = []
+                for face in faces:
+                    x = face[0]
+                    y = face[1]
+                    x1 = x + face[2]
+                    y1 = y + face[3]
+                    ret.append(dlib.rectangle(int(x),int(y),int(x1),int(y1)))
+                return [Face(filepath = filepath, image = image if not filepath else None, 
+                         rectangle = face, label = label) for face in ret]
+            else:
+                return []
+        
+        
+    def tilt(self):
+        if self._tilt is None: 
+            tilt = 180 - np.arctan2( self.milestones()[45][1]- self.milestones()[39][1], 
+                                     self.milestones()[39][0]- self.milestones()[45][0])*180/np.pi
+            self._tilt = tilt if tilt<180 else tilt - 360
+        return self._tilt
+    
+    def center(self):
+        if self._center is None:
+            self._center = (self.milestones()[39][0] + self.milestones()[45][0] / 2, 
+                            self.milestones()[39][1] + self.milestones()[45][1] / 2)
+        return self._center
+
+class FaceSet:
+    # Отображение номеров точек при зеркалировании
+    mirrormap = [16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,
              26,25,24,23,22,21,20,19,18,17,
              27,28,29,30,
              35,34,33,32,31,
@@ -38,8 +120,57 @@ mirrormap = [16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,
              63,62,61,
              60,
              67,66,65]
+        
+    def __init__(self, faces):
+        self.faces = faces
+    
+    def normalisation(self,arr):
+        max = np.max(arr, 0)
+        min = np.min(arr, 0)
+        return (arr-min)/(max - min)-0.5
 
-def get_emotion (subject, series):
+    def standardization(self,arr):
+    # Переводим массив в новый массив с 0 матожиданием и единичной дисперсией
+        mean = arr.mean(0)
+        variance = arr.var(0)
+        return (arr-mean)/np.sqrt(variance), mean, variance
+
+    def undo_standartization(self,arr, mean, var):
+        return arr * np.power(var, 2) + mean
+    
+    def mirror(self, arr):
+        return np.apply_along_axis(lambda x: [-x[0], x[1]], 1, arr)[self.mirrormap]
+    
+    def generate_data(self):
+        points = np.array([normalisation(face.milestones()).flatten() for face in self.faces]+
+                          [normalisation(mirror(face.milestones())).flatten() for face in self.faces]
+                           )
+        labels = np.array([face.label for face in self.faces] * 2)
+        return points, labels
+    
+    def generate_sets(self,train_size = 0.6, validation_size = 0.2, test_size = 0.2,
+                      permutation = None, pca_enabled = False):
+        points, labels = generate_data()
+        if pca_enabled:
+            self.pca = pca(points)
+            points = pca.transform(points)
+        if permutation:
+            self.permutation = permutation
+        if not self.permutation:
+            self.permutation = np.random.permutation(points.shape[0])
+        training_count = points.shape[0]*train_size
+        validation_count = points.shape[0]*validation_size
+        test_count = point.shape[0]-test_count-validation_count
+        training_data, validation_data, test_data=np.split(points, 
+                [training_count, validation_count, test_count])
+        training_labels, validation_labels, test_labels=np.split(labels, 
+                [training_count, validation_count, test_count])
+        return  ( [training_data, training_labels],
+                  [validation_data, validation_labels],
+                  [test_data, test_labels])
+                
+        
+def get_emotion (subject: str, series: str):
     path = emotion_labels_path + "/" + subject + "/" + series
     if not os.path.exists(path):
         return -1
@@ -51,61 +182,8 @@ def get_emotion (subject, series):
         str = fin.readline()
         return int(float(str))
 
-def find_faces(image):
-    faces = frontal_face_detector(image)
-    if len(faces) != 0:
-        return faces
-    else:
-        faces = faceCascade.detectMultiScale(image)
-        if len(faces) != 0:
-            ret = []
-            for face in faces:
-                x = face[0]
-                y = face[1]
-                x1 = x + face[2]
-                y1 = y + face[3]
-                ret.append(dlib.rectangle(int(x),int(y),int(x1),int(y1)))
-            return ret
-        else:
-            return None
-
-
-def get_milestones(image):
-    gray_image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-    faces = find_faces(gray_image)
-    if faces is None:
-        return []
-    ret = []
-    for face in faces:
-        milestones = pose_model(gray_image, face)
-        arr = np.ndarray((milestones.num_parts, 2))
-        for i in range(milestones.num_parts):
-            arr[i, 0] = milestones.part(i).x
-            arr[i, 1] = milestones.part(i).y
-        ret.append([face, arr])
-    return ret
-
-def normalisation(arr):
-    max = np.max(arr, 0)
-    min = np.min(arr, 0)
-    return (arr-min)/(max - min)-0.5
-
-def standardization(arr):
-    # Переводим массив в новый массив с 0 матожиданием и единичной дисперсией
-    mean = arr.mean(0)
-    variance = arr.var(0)
-    return (arr-mean)/np.sqrt(variance), mean, variance
-
-def undo_standartization(arr, mean, var):
-    return arr * np.power(var, 2) + mean
-
-def mirror(arr):
-    return np.apply_along_axis(lambda x: [-x[0], x[1]], 1, arr)[mirrormap]
-
-
 def load_all():
-    labels = []
-    data = []
+    faces = []
     for p1 in os.scandir(images_path):
         subject = p1.name
         if not p1.is_dir():
@@ -119,27 +197,23 @@ def load_all():
                     continue
                 image = p3.path
               #  print (image)
-                if int(image.rsplit("_")[-1][:-4]) > 5: # Начальные изображения - нейтральные
+                if int(image.rsplit("_")[-1][:-4]) > 8: # Начальные изображения - нейтральные
                     emotion = get_emotion(subject, num)
                 else:
                     emotion = 0
-                limage = cv2.imread(path)
-                if limage is None:
-                    continue
-                d = get_milestones(limage)
-                if d is None: continue
-                dn = normalisation(d[0][1])
-                labels.append([emotion]*2)
-                data.append(mirror(dn).flatten()) # Отражаем лицо относительно оси x=0.5, поскольку лица, вообще, симметричны
-                data.append(dn.flatten())
-                print (len(data))
-             #   print (emotion)
-    return np.array(labels).flatten(), np.array(data)
+                faces.append(Face.fabric(filepath = p3.path, label = emotion)[0])
+                print (len(faces))
+    return FaceSet(faces)
 
 
-# Требует 0 матожидания => данные перед применением необходимо центрировать (arr = arr - arr.mean(0))
-def pca (arr, keep_variance = 0.95):
-    pca = sklearn.decomposition.PCA(n_components=keep_variance, svd_solver='full')
-    pca.fit(arr)
-    return pca
 
+
+def save_data(labels, data, name):
+    np.save(name + "_data", data)
+    np.save(name + "_labels", labels)
+    
+def load_saved_data(name):
+    data = np.load(name + "_data")
+    labels = np.load(name + "_labels")
+    return labels, data
+    

@@ -2,14 +2,13 @@
 # -*- coding: utf-8 -*-
 
 
-from PySide.QtCore import *
-from PySide.QtGui import *
+from PySide.QtCore import QSize, QRect, Qt, QTimer, QApplication
+from PySide.QtGui import QWidget, QPainter, QLabel, QCheckBox, QPushButton
+from PySide.QtGui import QVBoxLayout, QImage, QPixmap
 import PySide.QtSvg
 import cv2
 import sys
 import numpy as np
-import dlib
-from PIL import Image,ImageDraw
 import preprocess
 import nn_learn
 
@@ -29,14 +28,14 @@ class MainApp(QWidget):
         QWidget.__init__(self)
         self.setup_camera()
         self.video_size = QSize(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH), self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        self.clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        self.clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         self.latest_tilts = [0]*5
         self.setup_ui()
         self.frames= 0
         self.grey_frames = 0
         self.modelName = "model"
-        self.model = nn_learn.get_network()
-        self.model.load (self.modelName)
+        self.model = nn_learn.NeuralNetwork(nn_learn.neural_net1_pca)
+        self.model.load()
 
 
     def recognize_emotion(self, faces):
@@ -46,14 +45,15 @@ class MainApp(QWidget):
             emotions.append(predicted.argmax())
         return emotions
 
-    def drawLandmarks (self, faces, image, number = False, frames= False, dots = False):
+    def drawLandmarks (self, faces, image, number = False, frames = False, dots = False):
         for face in faces:
             if frames:
-                (fx,fy,fw,fh) = (face[0].left(), face[0].top(), face[0].width(), face[0].height())
+                (fx,fy,fw,fh) = (face.rectangle.left(), face.rectangle.top(), 
+                     face.rectangle.width(), face.rectangle.height())
                 cv2.rectangle(image, (fx, fy), (fx + fw, fy + fh),
                           color=(0, 255, 0), thickness=3)
             for i in range(0, 68):
-                part = face[1][i]
+                part = face.milestones()[i]
                 if dots:
                     cv2.circle(image, (int (part[0]), int(part[1])), 2, color=(255, 255, 0), thickness = -1)
                 if (number):
@@ -72,14 +72,6 @@ class MainApp(QWidget):
         painter.end()
         return image
 
-        
-
-    def computeTilt(self, faces):
-        if (not faces): return (None, None)
-        face = faces[0][1]
-        tilt = 180 - np.arctan2(face[45][1]-face[39][1], face[39][0]-face[45][0])*180/np.pi
-        return (tilt if tilt<180 else tilt - 360,
-                (face[39][0] + face[45][0] / 2, face[39][1] + face[45][1] / 2))
 
     def setup_ui(self):
         """Initialize widgets.
@@ -134,8 +126,9 @@ class MainApp(QWidget):
         _, frame = self.capture.read()
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frame = cv2.flip(frame, 1)
+        #frame = cv2.blur(frame, (2 ,2))
         #faces = self.get_faces(frame)
-        faces = preprocess.get_milestones(frame)
+        faces = preprocess.Face.fabric(image = frame)
         self.frames +=1
         #print (faces)
 
@@ -146,7 +139,7 @@ class MainApp(QWidget):
         frame1 = self.drawLandmarks(faces, frame, False)
         self.emotion_label.setText(emotion_text)
         # Определяем наклон лица
-        tilt, center = self.computeTilt(faces)
+        tilt, center = faces[0].tilt(), faces[0].center()
         # Если лицо есть на фрейме
         if tilt!=None and self.tilt_control.isChecked():
             # Смещаем плавающее окно дальше

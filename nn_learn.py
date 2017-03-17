@@ -2,45 +2,67 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-import tensorflow as tf
 import preprocess
 import tflearn
 
-num_features = 12
-num_labels = 8
+neural_net1_pca = {
+    "num_features": 12,
+    "num_labels": 8,
+    "num_layers": 2,
+    "num_neurons": [64, 64],
+    "use_dropout": True,
+    "model_name": "model"
+}
 
-data = np.load(preprocess.root_path + "/data")
-labels = np.load(preprocess.root_path + "/emotions")
-pca = preprocess.pca(data - data.mean(0))
 
-def accuracy (model, test_data, test_labels):
-    predicted = np.array(model.predict(test_data)).argmax(axis = 1)
+class NeuralNetwork(object):
+    def __init__(self, params):
+        self.params = params
+        input_layer = tflearn.input_data(shape=[None, params["num_features"]])
+        prev_layer = input_layer
+        for i in range(params["num_layers"]):
+            dense = tflearn.fully_connected(prev_layer, params["num_neurons"][i], activation='tanh',
+                                            regularizer='L2', weight_decay=0.001)
+            prev_layer = dense
+            if params["use_dropout"]:
+                dropout1 = tflearn.dropout(prev_layer, 0.8)
+                prev_layer = dropout1
+        softmax = tflearn.fully_connected(prev_layer, params["num_labels"], activation='softmax')
+        # Regression using SGD with learning rate decay and Top-3 accuracy
+        sgd = tflearn.SGD(learning_rate=0.1, lr_decay=0.96, decay_step=1000)
+        top_k = tflearn.metrics.Top_k(3)
+        net = tflearn.regression(softmax, optimizer=sgd, metric=top_k,
+                                 loss='categorical_crossentropy')
+
+        # Training
+        self.model = tflearn.DNN(net, tensorboard_verbose=0)
+
+    def train(self, training_data, training_labels, validation_data, validation_labels, n_epoch):
+        model.fit(training_data, training_labels, n_epoch=400, validation_set=(validation_data, validation_labels),
+                  show_metric=True, shuffle=True, run_id=self.params["model_name"] + "sess")
+
+    def save(self):
+        self.model.save(self.params["model_name"])
+
+    def load(self):
+        self.model.load(self.params["model_name"])
+
+    def predict(self, X):
+        return self.model.predict(X)
+
+
+  
+    
+
+def accuracy(model, test_data, test_labels):
+    predicted = np.array(model.predict(test_data)).argmax(axis=1)
     actual = test_labels.argmax(axis=1)
     true, false = np.count_nonzero(predicted == actual), np.count_nonzero(predicted != actual)
-    return true/(true + false)
-
-def get_network():
-    input_layer = tflearn.input_data(shape=[None, num_features])
-    dense1 = tflearn.fully_connected(input_layer, 64, activation='tanh',
-                                     regularizer='L2', weight_decay=0.001)
-    dropout1 = tflearn.dropout(dense1, 0.8)
-    dense2 = tflearn.fully_connected(dropout1, 64, activation='tanh',
-                                     regularizer='L2', weight_decay=0.001)
-    dropout2 = tflearn.dropout(dense2, 0.8)
-    softmax = tflearn.fully_connected(dropout2, num_labels, activation='softmax')
-    # Regression using SGD with learning rate decay and Top-3 accuracy
-    sgd = tflearn.SGD(learning_rate=0.1, lr_decay=0.96, decay_step=1000)
-    top_k = tflearn.metrics.Top_k(3)
-    net = tflearn.regression(softmax, optimizer=sgd, metric=top_k,
-                             loss='categorical_crossentropy')
-
-    # Training
-    model = tflearn.DNN(net, tensorboard_verbose=0)
-    return model
+    return true / (true + false)
 
 if __name__ == '__main__':
 
-    #pcadata = pca.transform(data)
+    # pcadata = pca.transform(data)
     pcadata = data
 
     # Выбрасываем неопределенные эмоции
@@ -52,13 +74,13 @@ if __name__ == '__main__':
     # Определяем метку с наименьшим количеством данных
     bincount = np.bincount(labels)
     minlabel = 0
-    for i in range(labels.max()+1):
+    for i in range(labels.max() + 1):
         if bincount[i] != 0 and bincount[minlabel] > bincount[i]:
             minlabel = i
-    mincount = bincount [minlabel]
+    mincount = bincount[minlabel]
     # Разбиваем данные случайным образом на обучающее, тестовое и валидирующее множества в отношении 60:20:20
-    training_count = int (mincount * 0.6)
-    test_count = int (mincount * 0.2)
+    training_count = int(mincount * 0.6)
+    test_count = int(mincount * 0.2)
     validation_count = mincount - training_count - test_count
     # Выбираем нужное количество данных из каждой категории
     training_data = []
@@ -68,11 +90,11 @@ if __name__ == '__main__':
     validation_data = []
     validation_labels = []
     for i in np.unique(labels):
-        restricted_data = pcadata [labels == i]
+        restricted_data = pcadata[labels == i]
         label = np.zeros(num_labels)
         label[i] = 1
         np.random.shuffle(restricted_data)
-        spl = np.split(restricted_data[0:mincount],[training_count,training_count+test_count])
+        spl = np.split(restricted_data[0:mincount], [training_count, training_count + test_count])
         training_data.append(spl[0])
         training_labels += [label] * training_count
         test_data.append(spl[1])
@@ -82,27 +104,20 @@ if __name__ == '__main__':
     training_data = np.array(training_data).reshape(-1, num_features)
     test_data = np.array(test_data).reshape(-1, num_features)
     validation_data = np.array(validation_data).reshape(-1, num_features)
-    training_labels = np.array(training_labels).reshape(-1,num_labels)
-    test_labels = np.array(test_labels).reshape(-1,num_labels)
-    validation_labels = np.array(validation_labels).reshape(-1,num_labels)
-
+    training_labels = np.array(training_labels).reshape(-1, num_labels)
+    test_labels = np.array(test_labels).reshape(-1, num_labels)
+    validation_labels = np.array(validation_labels).reshape(-1, num_labels)
 
     training_permut = np.random.permutation(training_data.shape[0])
     test_permut = np.random.permutation(test_data.shape[0])
     validation_permut = np.random.permutation(validation_data.shape[0])
     training_data = training_data[training_permut]
-    test_data = test_data [test_permut]
-    validation_data = validation_data [validation_permut]
+    test_data = test_data[test_permut]
+    validation_data = validation_data[validation_permut]
     training_labels = training_labels[training_permut]
-    test_labels = test_labels [test_permut]
-    validation_labels = validation_labels [validation_permut]
+    test_labels = test_labels[test_permut]
+    validation_labels = validation_labels[validation_permut]
 
-
-# Собственно нейронная сеть
-    model = get_network()
-    model.fit(training_data, training_labels, n_epoch=400, validation_set=(validation_data, validation_labels),
-              show_metric=True,shuffle = True, run_id="non_pca_model")
-    
-
-
-
+    # Собственно нейронная сеть
+    model = NeuralNetwork(neural_net1_pca)
+    model.train(training_data, training_labels, validation_data, validation_labels, n_epoch=400)
