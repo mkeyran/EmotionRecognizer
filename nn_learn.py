@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-import preprocess
 import tflearn
+import tensorflow as tf
 
 neural_net1_pca = {
     "num_features": 12,
@@ -11,23 +11,34 @@ neural_net1_pca = {
     "num_layers": 2,
     "num_neurons": [64, 64],
     "use_dropout": True,
-    "model_name": "model"
+    "model_name": "model1"
+}
+
+neural_net1_nonpca = {
+    "num_features": 136,
+    "num_labels": 8,
+    "num_layers": 2,
+    "num_neurons": [64, 64],
+    "use_dropout": True,
+    "model_name": "model1_non_pca"
 }
 
 
 class NeuralNetwork(object):
+
     def __init__(self, params):
         self.params = params
         input_layer = tflearn.input_data(shape=[None, params["num_features"]])
         prev_layer = input_layer
         for i in range(params["num_layers"]):
-            dense = tflearn.fully_connected(prev_layer, params["num_neurons"][i], activation='tanh',
+            dense = tflearn.fully_connected(prev_layer, params["num_neurons"][i], activation='relu',
                                             regularizer='L2', weight_decay=0.001)
             prev_layer = dense
             if params["use_dropout"]:
                 dropout1 = tflearn.dropout(prev_layer, 0.8)
                 prev_layer = dropout1
-        softmax = tflearn.fully_connected(prev_layer, params["num_labels"], activation='softmax')
+        softmax = tflearn.fully_connected(
+            prev_layer, params["num_labels"], activation='softmax')
         # Regression using SGD with learning rate decay and Top-3 accuracy
         sgd = tflearn.SGD(learning_rate=0.1, lr_decay=0.96, decay_step=1000)
         top_k = tflearn.metrics.Top_k(3)
@@ -38,8 +49,12 @@ class NeuralNetwork(object):
         self.model = tflearn.DNN(net, tensorboard_verbose=0)
 
     def train(self, training_data, training_labels, validation_data, validation_labels, n_epoch):
-        model.fit(training_data, training_labels, n_epoch=400, validation_set=(validation_data, validation_labels),
-                  show_metric=True, shuffle=True, run_id=self.params["model_name"] + "sess")
+        eye = np.eye(self.params["num_labels"])
+        n_training_labels = eye[training_labels]
+        n_validation_labels = eye[validation_labels]
+        with tf.Graph().as_default():
+            self.model.fit(training_data, n_training_labels, n_epoch=n_epoch, validation_set=(validation_data, n_validation_labels),
+                           show_metric=True, shuffle=True, run_id=self.params["model_name"] + "sess")
 
     def save(self):
         self.model.save(self.params["model_name"])
@@ -51,73 +66,9 @@ class NeuralNetwork(object):
         return self.model.predict(X)
 
 
-  
-    
-
 def accuracy(model, test_data, test_labels):
     predicted = np.array(model.predict(test_data)).argmax(axis=1)
     actual = test_labels.argmax(axis=1)
-    true, false = np.count_nonzero(predicted == actual), np.count_nonzero(predicted != actual)
+    true, false = np.count_nonzero(
+        predicted == actual), np.count_nonzero(predicted != actual)
     return true / (true + false)
-
-if __name__ == '__main__':
-
-    # pcadata = pca.transform(data)
-    pcadata = data
-
-    # Выбрасываем неопределенные эмоции
-    pcadata = pcadata[labels != -1]
-    labels = labels[labels != -1]
-    # Выбрасываем неприязнь, слишком мало данных
-    pcadata = pcadata[labels != 2]
-    labels = labels[labels != 2]
-    # Определяем метку с наименьшим количеством данных
-    bincount = np.bincount(labels)
-    minlabel = 0
-    for i in range(labels.max() + 1):
-        if bincount[i] != 0 and bincount[minlabel] > bincount[i]:
-            minlabel = i
-    mincount = bincount[minlabel]
-    # Разбиваем данные случайным образом на обучающее, тестовое и валидирующее множества в отношении 60:20:20
-    training_count = int(mincount * 0.6)
-    test_count = int(mincount * 0.2)
-    validation_count = mincount - training_count - test_count
-    # Выбираем нужное количество данных из каждой категории
-    training_data = []
-    training_labels = []
-    test_data = []
-    test_labels = []
-    validation_data = []
-    validation_labels = []
-    for i in np.unique(labels):
-        restricted_data = pcadata[labels == i]
-        label = np.zeros(num_labels)
-        label[i] = 1
-        np.random.shuffle(restricted_data)
-        spl = np.split(restricted_data[0:mincount], [training_count, training_count + test_count])
-        training_data.append(spl[0])
-        training_labels += [label] * training_count
-        test_data.append(spl[1])
-        test_labels += [label] * test_count
-        validation_data.append(spl[2])
-        validation_labels += [label] * validation_count
-    training_data = np.array(training_data).reshape(-1, num_features)
-    test_data = np.array(test_data).reshape(-1, num_features)
-    validation_data = np.array(validation_data).reshape(-1, num_features)
-    training_labels = np.array(training_labels).reshape(-1, num_labels)
-    test_labels = np.array(test_labels).reshape(-1, num_labels)
-    validation_labels = np.array(validation_labels).reshape(-1, num_labels)
-
-    training_permut = np.random.permutation(training_data.shape[0])
-    test_permut = np.random.permutation(test_data.shape[0])
-    validation_permut = np.random.permutation(validation_data.shape[0])
-    training_data = training_data[training_permut]
-    test_data = test_data[test_permut]
-    validation_data = validation_data[validation_permut]
-    training_labels = training_labels[training_permut]
-    test_labels = test_labels[test_permut]
-    validation_labels = validation_labels[validation_permut]
-
-    # Собственно нейронная сеть
-    model = NeuralNetwork(neural_net1_pca)
-    model.train(training_data, training_labels, validation_data, validation_labels, n_epoch=400)
