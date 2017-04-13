@@ -3,6 +3,7 @@
 
 
 try:
+    pyside = False
     from PyQt5.QtCore import QSize, QRect, Qt, QTimer, QRectF
     from PyQt5.QtGui import QPainter, QImage, QPixmap
     from PyQt5.QtWidgets import QWidget, QLabel, QCheckBox, QPushButton
@@ -10,10 +11,13 @@ try:
     from PyQt5 import QtSvg
 except:
     print ("Reverting to PySide")
+    pyside = True
     from PySide.QtCore import QSize, QRect, Qt, QTimer
     from PySide.QtGui import QWidget, QPainter, QLabel, QCheckBox, QPushButton
     from PySide.QtGui import QVBoxLayout, QImage, QPixmap, QApplication
     from PySide import QtSvg
+
+import ctypes
 import cv2
 import sys
 import numpy as np
@@ -179,8 +183,14 @@ class MainApp(QWidget):
             # поворачиваем изображение
             M = cv2.getRotationMatrix2D((cols / 2, rows / 2), mean_tilt, 1)
             frame1 = cv2.warpAffine(frame1, M, (cols, rows))
+        rcount = ctypes.c_long.from_address(id(frame1)).value # Get the reference count of self.data.
+
         image = QImage(frame1, frame1.shape[1], frame1.shape[0],
                        frame1.strides[0], QImage.Format_RGB888)
+
+        ## Обход утечки памяти из-за QImage в Pyside
+        if pyside:
+            ctypes.c_long.from_address(id(frame1)).value=rcount
 
         if self.anonymousMode.isChecked():
             image = self.drawSmileys(faces, emotions, image)
