@@ -7,8 +7,8 @@ import numpy as np
 import dlib
 import sklearn.decomposition
 import pickle
-
-
+import mappings
+import copy
 # Emotion tags in ascending order
 emotions = ['neutral', 'anger', 'contempt', 'disgust',
             'fear', 'happiness', 'sadness', 'surprise']
@@ -17,26 +17,15 @@ root_path = "/home/keyran/Documents/Teaching/2016/Дипломники/Datasets/
 images_path = root_path + "cohn-kanade-images"
 emotion_labels_path = root_path + "Emotion"
 
-cascadePath = "haarcascade_frontalface_alt.xml"
+cascadePath = "data/Cascades/haarcascade_frontalface_alt.xml"
 
 faceCascade = cv2.CascadeClassifier(cascadePath)
 
 frontal_face_detector = dlib.get_frontal_face_detector()
 
-pose_model = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
+pose_model = dlib.shape_predictor("data/ShapePredictor/shape_predictor_68_face_landmarks.dat")
 
 clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-
-# Требует 0 матожидания => данные перед применением необходимо
-# центрировать (arr = arr - arr.mean(0))
-
-
-def pca(arr, keep_variance=0.95):
-    pca_ = sklearn.decomposition.PCA(
-        n_components=keep_variance, svd_solver='full')
-    pca_.fit(arr)
-    return pca_
-
 
 class Face:
 
@@ -113,68 +102,30 @@ class Face:
 
 
 class FaceSet:
-    # Отображение номеров точек при зеркалировании
-    mirrormap = [16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0,
-                 26, 25, 24, 23, 22, 21, 20, 19, 18, 17,
-                 27, 28, 29, 30,
-                 35, 34, 33, 32, 31,
-                 45, 44, 43, 42, 47, 46,
-                 39, 38, 37, 36, 41, 40,
-                 54, 53, 52, 51, 50, 49, 48,
-                 59, 58, 57, 56, 55,
-                 64,
-                 63, 62, 61,
-                 60,
-                 67, 66, 65]
 
-    def __init__(self, faces):
+
+    def __init__(self, faces, maps = []):
         self.faces = faces
         self.permutation = None
-        self.pca = None
+        self.mappings = maps
 
-    def normalisation(self, arr):
-        max_ = np.max(arr, 0)
-        min_ = np.min(arr, 0)
-        return (arr - min_) / (max_ - min_) - 0.5
-
-    def standardization(self, arr):
-        # Переводим массив в новый массив с 0 матожиданием и единичной
-        # дисперсией
-        mean = arr.mean(0)
-        variance = arr.var(0)
-        return (arr - mean) / np.sqrt(variance), mean, variance
-
-    def undo_standartization(self, arr, mean, var):
-        return arr * np.power(var, 2) + mean
-
-    def mirror(self, arr):
-        return np.apply_along_axis(lambda x: [-x[0], x[1]], 1, arr)[self.mirrormap]
-
-    def generate_data(self, mirror=False):
-        if mirror:
-            points = np.array([self.normalisation(face.milestones()).flatten() for face in self.faces] +
-                              [self.normalisation(self.mirror(
-                                  face.milestones())).flatten() for face in self.faces]
-                              )
-        else:
-            points = np.array(
-                [self.normalisation(face.milestones()).flatten() for face in self.faces])
-        if len (self.faces) > 0 and not self.faces[0].label is None:
-            if mirror:
-                labels = np.array([face.label for face in self.faces] * 2)
-            else:
-                labels = np.array([face.label for face in self.faces])
-        else:
-            labels = None
-
-        return points, labels
+    def generate_training_data(self):
+        data = np.array([f.milestones() for f in self.faces])
+        labels = np.array([f.label for f in self.faces])  
+        for mapping in self.mappings:
+            data, labels = mapping.training_mapping(data, labels)
+        return data.reshape(len(labels),-1), labels
+    
+    def generate_data(self):
+        data = np.array([f.milestones() for f in self.faces])
+        data_len = len(data)
+        for mapping in self.mappings:
+            data = mapping.classification_mapping(data)
+        return data.reshape(data_len,-1)
 
     def generate_sets(self, train_size=0.6, validation_size=0.2, test_size=0.2,
-                      permutation=None, pca_enabled=False):
+                      permutation=None):
         points, labels = self.generate_data(mirror=True)
-        if pca_enabled:
-            self.pca = pca(points)
-            points = self.pca.transform(points)
         if permutation:
             self.permutation = permutation
         if self.permutation is None:
@@ -237,3 +188,23 @@ def load_all():
                 faces.append(Face.fabric(filepath=p3.path, label=emotion)[0])
                 print(len(faces))
     return FaceSet(faces)
+
+if __name__ == '__main__':
+    try:
+        face_set = FaceSet.load("data/TrainingData/training_data.dat")
+    except:
+        face_set = load_all()
+    pca_face_set = copy.deepcopy(face_set)
+    face_set.mappings = (mappings.DropContemptMapping(), 
+                         mappings.NormalizeMapping(), 
+                         mappings.ImageMirrorMapping()
+                         )
+
+    pca = mappings.PCAMapping()
+
+    pca_face_set.mappings = (mappings.DropContemptMapping(), 
+                         mappings.NormalizeMapping(), 
+                         mappings.ImageMirrorMapping(),
+                         pca)
+    face_set.save("data/TrainingData/training_data.dat")
+    pickle.dump(pca,open("data/TrainingData/pcamapping.dat",'wb'))

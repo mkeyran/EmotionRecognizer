@@ -57,10 +57,10 @@ class NeuralNetwork(object):
                            show_metric=True, shuffle=True, run_id=self.params["model_name"] + "sess")
 
     def save(self):
-        self.model.save(self.params["model_name"])
+        self.model.save("data/Models/"+self.params["model_name"])
 
     def load(self):
-        self.model.load(self.params["model_name"])
+        self.model.load("data/Models/"+self.params["model_name"])
 
     def predict(self, X):
         return self.model.predict(X)

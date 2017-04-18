@@ -23,6 +23,8 @@ import sys
 import numpy as np
 import preprocess
 import nn_learn
+import pickle
+import mappings
 
 from pympler.tracker import SummaryTracker
 
@@ -55,14 +57,22 @@ class MainApp(QWidget):
         self.setup_ui()
         self.frames = 0
         self.grey_frames = 0
+        #self.pca = pickle.load(open("data/TrainingData/pcamapping.dat",'rb'))
+        self.maps = (mappings.DropContemptMapping(), 
+                         mappings.NormalizeMapping(), 
+                         mappings.ImageMirrorMapping(),
+        #                 pca
+                         )
         self.modelName = "model"
         self.model = nn_learn.NeuralNetwork(nn_learn.neural_net1_nonpca)
         self.model.load()
 
 
     def recognize_emotion(self, faces):
+        if not faces.faces:
+            return []
         return np.argmax(
-                np.array(self.model.predict(faces.generate_data()[0])),
+                np.array(self.model.predict(faces.generate_data())),
                 axis = 1).tolist()
  
 
@@ -152,6 +162,7 @@ class MainApp(QWidget):
         #frame = cv2.blur(frame, (2 ,2))
         #faces = self.get_faces(frame)
         faces = preprocess.FaceSet(preprocess.Face.fabric(image=frame))
+        faces.mappings = self.maps
         self.frames += 1
         #if (self.frames == 10):
         #    self.tracker = SummaryTracker()
@@ -171,7 +182,10 @@ class MainApp(QWidget):
         frame1 = self.drawLandmarks(faces, frame, False)
         self.emotion_label.setText(emotion_text)
         # Определяем наклон лица
-        tilt, center = faces.faces[0].tilt(), faces.faces[0].center()
+        if faces.faces:
+            tilt = faces.faces[0].tilt()
+        else:
+            tilt = None
         # Если лицо есть на фрейме
         if tilt != None and self.tilt_control.isChecked():
             # Смещаем плавающее окно дальше
