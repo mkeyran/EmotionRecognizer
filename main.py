@@ -57,15 +57,20 @@ class MainApp(QWidget):
         self.setup_ui()
         self.frames = 0
         self.grey_frames = 0
-        #self.pca = pickle.load(open("data/TrainingData/pcamapping.dat",'rb'))
-        self.maps = (mappings.DropContemptMapping(), 
+        self.pca = pickle.load(open("data/TrainingData/pcamapping.dat",'rb'))
+        #import pdb;        pdb.set_trace();
+
+        self.maps = (mappings.DropContemptMapping(),
                          mappings.NormalizeMapping(), 
                          mappings.ImageMirrorMapping(),
-        #                 pca
+                         self.pca
                          )
         self.modelName = "model"
-        self.model = nn_learn.NeuralNetwork(nn_learn.neural_net1_nonpca)
+        self.model = nn_learn.NeuralNetwork(nn_learn.neural_net2_pca)
         self.model.load()
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.display_video_stream)
+        self.timer.start(50)
 
 
     def recognize_emotion(self, faces):
@@ -149,9 +154,7 @@ class MainApp(QWidget):
         self.capture = cv2.VideoCapture(0)
         #    self.capture.set(cv2.CV_CAP_PROP_FRAME_WIDTH, self.video_size.width())
         #    self.capture.set(cv2.CV_CAP_PROP_FRAME_HEIGHT, self.video_size.height())
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.display_video_stream)
-        self.timer.start(50)
+
 
     def display_video_stream(self):
         """Read frame from camera and repaint QLabel widget.
