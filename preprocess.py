@@ -125,7 +125,7 @@ class FaceSet:
 
     def generate_sets(self, train_size=0.6, validation_size=0.2, test_size=0.2,
                       permutation=None):
-        points, labels = self.generate_data(mirror=True)
+        points,labels = self.generate_training_data()
         if permutation:
             self.permutation = permutation
         if self.permutation is None:
@@ -208,3 +208,9 @@ if __name__ == '__main__':
                          pca)
     face_set.save("data/TrainingData/training_data.dat")
     pickle.dump(pca,open("data/TrainingData/pcamapping.dat",'wb'))
+    if(input("Generate training data? (yes/no) ")=="yes"):
+        dat = face_set.generate_sets()
+        pickle.dump(dat, open("data/TrainingData/pickled_generated_sets",'wb'))
+        pca_dat = pca_face_set.generate_sets()
+        pickle.dump(pca_dat, open("data/TrainingData/pickled_generated_sets_pca",'wb'))
+        pickle.dump(pca, open("data/TrainingData/pcamapping.dat", 'wb'))
