@@ -52,7 +52,8 @@ class Face:
             raise Exception("The face rectangle hasn't been set")
         if self._milestones is None:
             gray_image = cv2.cvtColor(self.image(), cv2.COLOR_RGB2GRAY)
-            milestones = pose_model(gray_image, self.rectangle)
+            clahe_frame = clahe.apply(gray_image)
+            milestones = pose_model(clahe_frame, self.rectangle)
             arr = np.ndarray((milestones.num_parts, 2))
             for i in range(milestones.num_parts):
                 arr[i, 0] = milestones.part(i).x

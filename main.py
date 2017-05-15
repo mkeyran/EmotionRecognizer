@@ -40,6 +40,7 @@ svg_path = "Emotions/svg"
 #           42 - right eye (left)
 #           45 - right eye (right)
 
+
 def argmax(iterable):
     return max(enumerate(iterable), key=lambda x: x[1])[0]
 
@@ -52,7 +53,6 @@ class MainApp(QWidget):
         self.setup_camera()
         self.video_size = QSize(self.capture.get(
             cv2.CAP_PROP_FRAME_WIDTH), self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        self.clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         self.latest_tilts = [0] * 5
         self.setup_ui()
         self.frames = 0

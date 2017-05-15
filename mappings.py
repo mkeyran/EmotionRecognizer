@@ -86,6 +86,7 @@ class PCAMapping(Mapping):
         """
         Функция, инициализирующая PCA на обучающих данных.
         """
+        #TODO: Обучать PCA только на обучающих данных
         self.pca = sklearn.decomposition.PCA(
             n_components=self.keep_variance, svd_solver='full')
         flatten_data = [d.flatten() for d in data]
