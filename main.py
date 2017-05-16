@@ -25,6 +25,7 @@ import preprocess
 import nn_learn
 import pickle
 import mappings
+import decision_trees_ensemble
 
 from pympler.tracker import SummaryTracker
 
@@ -40,6 +41,7 @@ svg_path = "Emotions/svg"
 #           42 - right eye (left)
 #           45 - right eye (right)
 
+emotions_moving_average_N = 20
 
 def argmax(iterable):
     return max(enumerate(iterable), key=lambda x: x[1])[0]
@@ -58,7 +60,8 @@ class MainApp(QWidget):
         self.frames = 0
         self.grey_frames = 0
         self.pca = pickle.load(open("data/TrainingData/pcamapping.dat",'rb'))
-        #import pdb;        pdb.set_trace();
+        self.last_emotions = []
+         #import pdb;        pdb.set_trace();
 
         self.maps = (mappings.DropContemptMapping(),
                          mappings.NormalizeMapping(), 
@@ -76,9 +79,14 @@ class MainApp(QWidget):
     def recognize_emotion(self, faces):
         if not faces.faces:
             return []
-        return np.argmax(
-                np.array(self.model.predict(faces.generate_data())),
-                axis = 1).tolist()
+        faces.emotions = np.array(self.model.predict(faces.generate_data()))
+        # Наивное применение движущегося среднего
+        # TODO: Добавить определение среднего для нескольких лиц
+        emotions = faces.emotions
+        for le in self.last_emotions:
+            if le.emotions is not None:
+                emotions = emotions + le.emotions
+        return np.argmax(faces.emotions, axis = 1).tolist()
  
 
     def drawLandmarks(self, faces, image, number=False, frames=False, dots=False):
@@ -216,6 +224,11 @@ class MainApp(QWidget):
         self.image_label.setPixmap(QPixmap.fromImage(image))
         self.grey_label.setText("Frames: {}; Grey frames: {}".format(
             self.frames, self.grey_frames))
+        
+        # Добавляем эмоцию к эмоциям, применяющимся для движущегося среднего
+        if (len(self.last_emotions) >= emotions_moving_average_N):
+            self.last_emotions.pop()
+        self.last_emotions.append (faces)
 
     def __del__(self):
         self.capture.release()

@@ -37,7 +37,7 @@ class Face:
         self._tilt = None
         self._milestones = None
         self._center = None
-        self._emotions = None
+        self.emotions = None
         self.label = label
         self.rectangle = rectangle
 
@@ -109,6 +109,7 @@ class FaceSet:
         self.faces = faces
         self.permutation = None
         self.mappings = maps
+        self.emotions = None
 
     def generate_training_data(self):
         data = np.array([f.milestones() for f in self.faces])
