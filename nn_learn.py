@@ -6,7 +6,7 @@ import tflearn
 import tensorflow as tf
 
 neural_net1_pca = {
-    "num_features": 12,
+    "num_features": 27,
     "num_labels": 8,
     "num_layers": 2,
     "num_neurons": [128, 128],
@@ -58,7 +58,7 @@ neural_net2_non_pca = {
 }
 
 neural_net2_pca = {
-    "num_features": 12,
+    "num_features": 27,
     "num_labels": 8,
     "num_layers": 3,
     "num_neurons": [256, 256, 256],

@@ -115,6 +115,8 @@ class FaceSet:
         data = np.array([f.milestones() for f in self.faces])
         labels = np.array([f.label for f in self.faces])  
         for mapping in self.mappings:
+            if type(mapping) == mappings.PCAMapping:
+                continue
             data, labels = mapping.training_mapping(data, labels)
         return data.reshape(len(labels),-1), labels
     
@@ -138,6 +140,13 @@ class FaceSet:
                                                              [training_count, validation_count + training_count])
         training_labels, validation_labels, test_labels = np.split(labels[self.permutation],
                                                                    [training_count, validation_count + training_count])
+        for mapping in self.mappings:
+            if type(mapping) == mappings.PCAMapping:
+                mapping.pca_init (training_data)
+                training_data = mapping.classification_mapping(training_data)
+                validation_data = mapping.classification_mapping(validation_data)
+                test_data = mapping.classification_mapping(test_data)
+
         return {"train_data": training_data,
                 "train_labels": training_labels,
                 "valid_data": validation_data,
@@ -209,7 +218,6 @@ if __name__ == '__main__':
                          mappings.ImageMirrorMapping(),
                          pca)
     face_set.save("data/TrainingData/training_data.dat")
-    pickle.dump(pca,open("data/TrainingData/pcamapping.dat",'wb'))
     if(input("Generate training data? (yes/no) ")=="yes"):
         dat = face_set.generate_sets()
         pickle.dump(dat, open("data/TrainingData/pickled_generated_sets",'wb'))
