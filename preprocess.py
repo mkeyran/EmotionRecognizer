@@ -194,6 +194,8 @@ def load_all():
                 # Начальные изображения - нейтральные
                 if int(image.rsplit("_")[-1][:-4]) > 8:
                     emotion = get_emotion(subject, num)
+                    if emotion == -1:
+                        continue
                 else:
                     emotion = 0
                 faces.append(Face.fabric(filepath=p3.path, label=emotion)[0])

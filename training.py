@@ -1,8 +1,8 @@
 import nn_learn
 
 import pickle
-dat = pickle.load(open("data/TrainingData/pickled_generated_sets",'rb'))
-pca_dat = pickle.load(open("data/TrainingData/pickled_generated_sets_pca",'rb'))
+dat = pickle.load(open("data/TrainingData/pickled_generated_sets", 'rb'))
+pca_dat = pickle.load(open("data/TrainingData/pickled_generated_sets_pca", 'rb'))
 
 neural_net1_pca = {
     "num_features": 12,
@@ -42,7 +42,7 @@ neural_net2_non_pca = {
 }
 
 
-NN_3L_256_256_256 = nn_learn.NeuralNetwork(neural_net1_pca)
+NN_3L_256_256_256 = nn_learn.NeuralNetwork(nn_learn.neural_net2_pca)
 
 d = pca_dat
 
