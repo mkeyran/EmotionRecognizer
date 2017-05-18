@@ -47,14 +47,14 @@ def confusion_matrix(model: ClassificationModel, test_data: np.ndarray, test_lab
 
 def precision(model: ClassificationModel, test_data: np.ndarray, test_labels: np.ndarray) -> float:
     predicted = np.array(model.predict(test_data)).argmax(axis=1)
-    return sklearn.metrics.precision_score(test_labels, predicted, average='samples')
+    return sklearn.metrics.precision_score(test_labels, predicted, average='macro')
 
 
 def recall(model: ClassificationModel, test_data: np.ndarray, test_labels: np.ndarray) -> float:
     predicted = np.array(model.predict(test_data)).argmax(axis=1)
-    return sklearn.metrics.recall_score(test_labels, predicted, average='samples')
+    return sklearn.metrics.recall_score(test_labels, predicted, average='macro')
 
 
 def f1_score(model: ClassificationModel, test_data: np.ndarray, test_labels: np.ndarray) -> float:
     predicted = np.array(model.predict(test_data)).argmax(axis=1)
-    return sklearn.metrics.f1_score(test_labels, predicted, average='samples')
+    return sklearn.metrics.f1_score(test_labels, predicted, average='macro')
