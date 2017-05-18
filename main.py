@@ -64,6 +64,7 @@ class MainApp(QWidget):
          #import pdb;        pdb.set_trace();
         self.rfc = decision_trees_ensemble.DecisionForestSkLearn.load(name="forest_pca")
         self.maps = (mappings.DropContemptMapping(),
+                     mappings.ZoomAndTranslateMapping(),
                          mappings.NormalizeMapping(), 
                          mappings.ImageMirrorMapping(),
                          self.pca

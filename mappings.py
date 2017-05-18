@@ -44,8 +44,8 @@ class Mapping(object):
         pass
 
 
-class NormalizeMapping(Mapping):
-    """ Класс, выполняющий нормализацию данных.
+class ZoomAndTranslateMapping(Mapping):
+    """ Класс, выполняющий перенос и масштабирование данных.
 
         Алгоритм: :math:`\fraq{X-d_min}{d_{max}-d_{min}}`
     """
@@ -62,6 +62,21 @@ class NormalizeMapping(Mapping):
         min_ = np.min(nd, 0)
         return ((nd - min_) / (max_ - min_) - 0.5)
 
+
+class NormalizeMapping(Mapping):
+    """ Класс, выполняющий нормализацию данных.
+
+        Алгоритм: :math:`X-X.mean(axis=0)`
+    """
+    def __init__(self):
+        self.mean = None
+
+    def training_mapping(self, data, labels):
+        self.mean = data.mean(axis = 0)
+        return self.classification_mapping(data), labels
+
+    def classification_mapping(self, data):
+        return data-self.mean
 
 class PCAMapping(Mapping):
     """ Класс, выполняющий анализ главных компонент для данных.
@@ -81,23 +96,28 @@ class PCAMapping(Mapping):
     def __init__(self, keep_variance=0.95):
         self.keep_variance = keep_variance
         self.pca = None
+        self.mean = None
         
     def pca_init (self, data):
         """
         Функция, инициализирующая PCA на обучающих данных.
         """
         #TODO: Обучать PCA только на обучающих данных
+        self.mean = data.mean()
+        data = data - self.mean
         self.pca = sklearn.decomposition.PCA(
             n_components=self.keep_variance, svd_solver='full')
         flatten_data = [d.flatten() for d in data]
         self.pca.fit(flatten_data)
     
     def training_mapping(self, data, labels):
+
         if self.pca is None:
             self.pca_init(data)
         return self.pca.transform(data.reshape(data.shape[0],-1)), labels
 
     def classification_mapping(self, data):
+        data = data - self.mean
         return self.pca.transform(data.reshape(data.shape[0],-1))
 
 

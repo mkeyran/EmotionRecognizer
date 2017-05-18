@@ -187,12 +187,13 @@ def load_all():
                 continue
             num = p2.name
             for p3 in os.scandir(p2.path):
+                files_count = len(list(os.scandir(p2.path)))
                 if not p3.is_file():
                     continue
                 image = p3.path
               #  print (image)
                 # Начальные изображения - нейтральные
-                if int(image.rsplit("_")[-1][:-4]) > 8:
+                if int(image.rsplit("_")[-1][:-4]) > files_count / 4:
                     emotion = get_emotion(subject, num)
                     if emotion == -1:
                         continue
@@ -208,20 +209,23 @@ if __name__ == '__main__':
     except:
         face_set = load_all()
     pca_face_set = copy.deepcopy(face_set)
-    face_set.mappings = (mappings.DropContemptMapping(), 
-                         mappings.NormalizeMapping(), 
-                         mappings.ImageMirrorMapping()
+    face_set.mappings = (mappings.DropContemptMapping(),
+                         mappings.ZoomAndTranslateMapping(),
+                         mappings.ImageMirrorMapping(),
+                         mappings.NormalizeMapping(),
                          )
 
-    pca = mappings.PCAMapping()
+    pca = mappings.PCAMapping(keep_variance=0.99)
 
-    pca_face_set.mappings = (mappings.DropContemptMapping(), 
-                         mappings.NormalizeMapping(), 
-                         mappings.ImageMirrorMapping(),
-                         pca)
+    pca_face_set.mappings = (mappings.DropContemptMapping(),
+                             mappings.ZoomAndTranslateMapping(),
+                             mappings.ImageMirrorMapping(),
+                             mappings.NormalizeMapping(),
+                             pca)
     face_set.save("data/TrainingData/training_data.dat")
     if(input("Generate training data? (yes/no) ")=="yes"):
         dat = face_set.generate_sets()
+        face_set.save("data/TrainingData/training_data.dat")
         pickle.dump(dat, open("data/TrainingData/pickled_generated_sets",'wb'))
         pca_dat = pca_face_set.generate_sets()
         pickle.dump(pca_dat, open("data/TrainingData/pickled_generated_sets_pca",'wb'))
