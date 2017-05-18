@@ -41,7 +41,7 @@ svg_path = "Emotions/svg"
 #           42 - right eye (left)
 #           45 - right eye (right)
 
-emotions_moving_average_N = 20
+emotions_moving_average_N = 7
 
 def argmax(iterable):
     return max(enumerate(iterable), key=lambda x: x[1])[0]
@@ -62,15 +62,15 @@ class MainApp(QWidget):
         self.pca = pickle.load(open("data/TrainingData/pcamapping.dat",'rb'))
         self.last_emotions = []
          #import pdb;        pdb.set_trace();
-
+        self.rfc = decision_trees_ensemble.DecisionForestSkLearn.load(name="forest_pca")
         self.maps = (mappings.DropContemptMapping(),
                          mappings.NormalizeMapping(), 
                          mappings.ImageMirrorMapping(),
                          self.pca
                          )
         self.modelName = "model"
-        self.model = nn_learn.NeuralNetwork(nn_learn.neural_net2_pca)
-        self.model.load()
+        #self.model = nn_learn.NeuralNetwork(nn_learn.neural_net2_pca)
+        #self.model.load()
         self.timer = QTimer()
         self.timer.timeout.connect(self.display_video_stream)
         self.timer.start(50)
@@ -79,7 +79,8 @@ class MainApp(QWidget):
     def recognize_emotion(self, faces):
         if not faces.faces:
             return []
-        faces.emotions = np.array(self.model.predict(faces.generate_data()))
+        #faces.emotions = np.array(self.model.predict(faces.generate_data()))
+        faces.emotions = np.array(self.rfc.predict(faces.generate_data()))
         # Наивное применение движущегося среднего
         # TODO: Добавить определение среднего для нескольких лиц
         emotions = faces.emotions

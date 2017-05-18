@@ -5,6 +5,8 @@ import numpy as np
 import tflearn
 import tensorflow as tf
 
+import base_model
+
 neural_net1_pca = {
     "num_features": 27,
     "num_labels": 8,
@@ -69,7 +71,7 @@ neural_net2_pca = {
     "metric_top_k": 1
 }
 
-class NeuralNetwork(object):
+class NeuralNetwork(base_model.ClassificationModel):
 
     def __init__(self, params):
         self.params = params

@@ -7,8 +7,10 @@ import numpy as np
 
 import pickle
 
+import base_model
 
-class DecisionForest:
+
+class DecisionForest(base_model.ClassificationModel):
     """ Класс, предоставляющий модель решающего леса (ансамбля решающих деревьев)
         Ансамбль генерирует заданное количество деревьев случайной глубины.
     """
@@ -121,8 +123,9 @@ class DecisionForestSkLearn:
     def save(self):
         pickle.dump(self, open("data/Models/" + self.name, "wb"))
 
-    def load(self):
-        pickle.loads(self, open("data/Models/" + self.name, "rb"))
+    @staticmethod
+    def load(name):
+        return pickle.load(open("data/Models/" + name, "rb"))
 
     def predict(self, data):
         """
