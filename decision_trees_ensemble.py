@@ -148,4 +148,21 @@ class DecisionForestSkLearn:
 if __name__ == '__main__':
     dat = pickle.load(open("data/TrainingData/pickled_generated_sets", 'rb'))
     pca_dat = pickle.load(open("data/TrainingData/pickled_generated_sets_pca", 'rb'))
-    #dec_forest_pca = DecisionForest("forest_pca")
+    dec_forest_pca = DecisionForestSkLearn("forest_pca")
+    dec_forest_pca.train(pca_dat["train_data"], pca_dat["train_labels"])
+    dec_forest_pca.save()
+
+    print("Training Accuracy: {}".format(base_model.accuracy(dec_forest_pca, pca_dat["train_data"], pca_dat["train_labels"])))
+    print("Accuracy:", base_model.accuracy(dec_forest_pca, pca_dat["valid_data"], pca_dat["valid_labels"]))
+    print("Precision:", base_model.precision(dec_forest_pca, pca_dat["valid_data"], pca_dat["valid_labels"]))
+    print("Recall:", base_model.recall(dec_forest_pca, pca_dat["valid_data"], pca_dat["valid_labels"]))
+    print("Confusion Matrix:", base_model.confusion_matrix(dec_forest_pca, pca_dat["valid_data"], pca_dat["valid_labels"]))
+
+    with open("data/Models/" + dec_forest_pca.name + "_props.txt", "w") as f:
+        f.write("Training Accuracy: {}\n".format(
+            base_model.accuracy(dec_forest_pca, pca_dat["train_data"], pca_dat["train_labels"])))
+        f.write("Accuracy: {}\n".format(base_model.accuracy(dec_forest_pca, pca_dat["valid_data"], pca_dat["valid_labels"])))
+        f.write("Precision: {}\n".format(base_model.precision(dec_forest_pca, pca_dat["valid_data"], pca_dat["valid_labels"])))
+        f.write("Recall: {}\n".format(base_model.recall(dec_forest_pca, pca_dat["valid_data"], pca_dat["valid_labels"])))
+        f.write("Confusion Matrix:\n {}\n".format(
+            base_model.confusion_matrix(dec_forest_pca, pca_dat["valid_data"], pca_dat["valid_labels"])))
