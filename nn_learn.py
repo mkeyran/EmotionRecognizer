@@ -242,6 +242,41 @@ neural_net6_pca_lr03 = {
     "metric_top_k": 1
 }
 
+neural_net7_pca_lr03 = {
+    "num_features": 27,
+    "num_labels": 8,
+    "num_layers": 2,
+    "num_neurons": [512, 512, 512],
+    "use_dropout": True,
+    "model_name": "nn_pca_512x512x512_lr_0.3",
+    "learning_rate": 0.3,
+    "learning_rate_decay":0.96,
+    "metric_top_k": 1
+}
+
+neural_net8_pca_lr03 = {
+    "num_features": 27,
+    "num_labels": 8,
+    "num_layers": 2,
+    "num_neurons": [1024, 1024, 1024],
+    "use_dropout": True,
+    "model_name": "nn_pca_1024x1024x1024_lr_0.3",
+    "learning_rate": 0.3,
+    "learning_rate_decay":0.96,
+    "metric_top_k": 1
+}
+
+neural_net9_pca_lr03 = {
+    "num_features": 27,
+    "num_labels": 8,
+    "num_layers": 4,
+    "num_neurons": [128,128,128,128],
+    "use_dropout": True,
+    "model_name": "nn_pca_128x128x128x128_lr_0.3",
+    "learning_rate": 0.3,
+    "learning_rate_decay":0.96,
+    "metric_top_k": 1
+}
 
 neural_net1_pca_lr01 = {
     "num_features": 27,
@@ -317,7 +352,8 @@ class NeuralNetwork(base_model.ClassificationModel):
         prev_layer = input_layer
         for i in range(params["num_layers"]):
             dense = tflearn.fully_connected(prev_layer, params["num_neurons"][i], activation='relu',
-                                            regularizer='L2', weight_decay=0.001)
+                                            regularizer='L2', weight_decay=0.001,
+                                            weights_init=tflearn.initializations.uniform(minval=-1.0, maxval=1.0))
             prev_layer = dense
             if params["use_dropout"]:
                 dropout1 = tflearn.dropout(prev_layer, 0.8)

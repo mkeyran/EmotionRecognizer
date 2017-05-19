@@ -9,7 +9,7 @@ pca_dat = pickle.load(open("data/TrainingData/pickled_generated_sets_pca", 'rb')
 
 
 
-model = nn_learn.NeuralNetwork(nn_learn.neural_net2_pca_lr03)
+model = nn_learn.NeuralNetwork(nn_learn.neural_net9_pca_lr03)
 
 d = pca_dat
 
